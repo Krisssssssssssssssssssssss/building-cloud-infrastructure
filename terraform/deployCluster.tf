@@ -2,6 +2,11 @@ provider "aws" {
   region = "me-south-1"
 }
 
+# Fetch Available AZs
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
 # Create a VPC
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
@@ -12,7 +17,7 @@ resource "aws_vpc" "main" {
   }
 }
 
-# Create Public Subnets
+# Public Subnets
 resource "aws_subnet" "public" {
   count                   = 2
   vpc_id                  = aws_vpc.main.id
@@ -24,18 +29,19 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Create Private Subnets
+# Private Subnets
 resource "aws_subnet" "private" {
-  count             = 2
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + 2)
-  availability_zone = data.aws_availability_zones.available.names[count.index]
+  count                   = 2
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet(aws_vpc.main.cidr_block, 8, count.index + 2)
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
   tags = {
     Name = "private-subnet-${count.index}"
   }
 }
 
-# Create Internet Gateway
+
+# Internet Gateway
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   tags = {
@@ -43,24 +49,7 @@ resource "aws_internet_gateway" "main" {
   }
 }
 
-# Create NAT Gateway
-resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.main.id
-  subnet_id     = aws_subnet.public[0].id
-  tags = {
-    Name = "main-nat-gateway"
-  }
-}
-
-# Elastic IP for NAT Gateway
-resource "aws_eip" "main" {
-  vpc = true
-  tags = {
-    Name = "main-eip"
-  }
-}
-
-# Create Public Route Table
+# Route Table for Public Subnets
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -74,19 +63,36 @@ resource "aws_route_table" "public" {
   }
 }
 
-# Associate Public Subnets with Route Table
+# Associate Public Subnets with Public Route Table
 resource "aws_route_table_association" "public" {
   count          = 2
   subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
 
-# Create Private Route Table
+# NAT Gateway
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.main.id
+  subnet_id     = aws_subnet.public[0].id
+  tags = {
+    Name = "main-nat-gateway"
+  }
+}
+
+# Elastic IP for NAT Gateway
+resource "aws_eip" "main" {
+  domain = "vpc"
+  tags = {
+    Name = "main-eip"
+  }
+}
+
+# Route Table for Private Subnets
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block = "0.0.0.0/0"
+    cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.main.id
   }
 
@@ -95,27 +101,20 @@ resource "aws_route_table" "private" {
   }
 }
 
-# Associate Private Subnets with Route Table
+# Associate Private Subnets with Private Route Table
 resource "aws_route_table_association" "private" {
   count          = 2
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
 }
 
-# Security Group for Public Access (Ingress/Load Balancer)
-resource "aws_security_group" "public" {
+# Security Group for Frontend
+resource "aws_security_group" "frontend" {
   vpc_id = aws_vpc.main.id
 
   ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
+    from_port   = 3000
+    to_port     = 3000
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -128,14 +127,23 @@ resource "aws_security_group" "public" {
   }
 
   tags = {
-    Name = "public-sg"
+    Name = "frontend-sg"
   }
 }
 
-# Security Group for Node Groups
-resource "aws_security_group" "nodes" {
+# Security Group for EKS Nodes
+resource "aws_security_group" "eks_nodes" {
   vpc_id = aws_vpc.main.id
 
+  # Allow traffic from the control plane
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+  }
+
+  # Allow communication between nodes
   ingress {
     from_port   = 0
     to_port     = 0
@@ -143,6 +151,7 @@ resource "aws_security_group" "nodes" {
     cidr_blocks = [aws_vpc.main.cidr_block]
   }
 
+  # Allow egress to the internet
   egress {
     from_port   = 0
     to_port     = 0
@@ -151,84 +160,115 @@ resource "aws_security_group" "nodes" {
   }
 
   tags = {
-    Name = "nodes-sg"
+    Name = "eks-nodes-sg"
   }
 }
 
-# Security Group for Database Access
-resource "aws_security_group" "database" {
+# Security Group for Backend
+resource "aws_security_group" "backend" {
   vpc_id = aws_vpc.main.id
 
+  # Allow traffic from EKS Nodes
+  ingress {
+    from_port   = 8706
+    to_port     = 8706
+    protocol    = "tcp"
+    security_groups = [aws_security_group.eks_nodes.id]
+  }
+
+  # Allow traffic to MongoDB and Redis
   ingress {
     from_port   = 27017
     to_port     = 27017
     protocol    = "tcp"
-    security_groups = [aws_security_group.nodes.id]
+    cidr_blocks = [aws_vpc.main.cidr_block]
   }
 
   ingress {
     from_port   = 6379
     to_port     = 6379
     protocol    = "tcp"
-    security_groups = [aws_security_group.nodes.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [aws_vpc.main.cidr_block]
   }
 
   tags = {
-    Name = "database-sg"
+    Name = "backend-sg"
   }
 }
 
-# EKS Cluster IAM Roles
-module "eks_roles" {
-  source  = "terraform-aws-modules/iam/aws//modules/eks"
-  version = "5.9.0"
-  cluster_name = var.cluster_name
-}
 
-# Create EKS Clusters
+# EKS Cluster
 module "eks_cluster" {
   source          = "terraform-aws-modules/eks/aws"
-  cluster_name    = var.cluster_name
+  version         = "20.33.1"
+  cluster_name    = "kristijan-production"
   cluster_version = "1.27"
-  subnets         = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)
-  vpc_id          = aws_vpc.main.id
-  node_security_group_ids = [aws_security_group.nodes.id]
 
-  node_groups = {
-    eks_nodes = {
-      desired_capacity = 2
-      max_capacity     = 4
-      min_capacity     = 1
-
-      instance_types = ["t3.medium"]
-      subnet_ids     = aws_subnet.private[*].id
-    }
-  }
+  subnet_ids      = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)
 }
 
-variable "cluster_name" {
-  description = "Name of the EKS cluster"
-  type        = string
+
+
+# Managed Node Group
+module "eks_node_group" {
+  source  = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  version = "20.33.1"
+
+  cluster_name    = module.eks_cluster.cluster_name
+  instance_types  = ["t3.medium"]
+  subnet_ids      = aws_subnet.private[*].id
+  min_size        = 1
+  max_size        = 4
 }
 
-output "cluster_endpoint" {
-  description = "EKS Cluster endpoint"
+# CI/CD and Monitoring: Outputs for Use in GitHub Actions or Jenkins
+output "eks_cluster_endpoint" {
+  description = "EKS Cluster endpoint for CI/CD integration"
   value       = module.eks_cluster.cluster_endpoint
 }
 
-output "cluster_arn" {
-  description = "EKS Cluster ARN"
-  value       = module.eks_cluster.cluster_arn
+# Fetch the EKS cluster details
+data "aws_eks_cluster" "cluster" {
+  name = module.eks_cluster.cluster_name
 }
 
-output "node_group_role_arn" {
-  description = "Node Group Role ARN"
-  value       = module.eks_roles.node_group_role_arn
+# Fetch the EKS cluster authentication details
+data "aws_eks_cluster_auth" "cluster" {
+  name = module.eks_cluster.cluster_name
+}
+
+# Output for kubeconfig
+output "eks_cluster_kubeconfig" {
+  description = "Kubeconfig file for CI/CD integration"
+  value = jsonencode({
+    apiVersion = "v1"
+    clusters = [
+      {
+        cluster = {
+          server                   = data.aws_eks_cluster.cluster.endpoint
+          certificate-authority-data = data.aws_eks_cluster.cluster.certificate_authority[0].data
+        }
+        name = data.aws_eks_cluster.cluster.name
+      }
+    ]
+    contexts = [
+      {
+        context = {
+          cluster = data.aws_eks_cluster.cluster.name
+          user    = data.aws_eks_cluster.cluster.name
+        }
+        name = data.aws_eks_cluster.cluster.name
+      }
+    ]
+    current-context = data.aws_eks_cluster.cluster.name
+    kind            = "Config"
+    users = [
+      {
+        name = data.aws_eks_cluster.cluster.name
+        user = {
+          token = data.aws_eks_cluster_auth.cluster.token
+        }
+      }
+    ]
+  })
 }
