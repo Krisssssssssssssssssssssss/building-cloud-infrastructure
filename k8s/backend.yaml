@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: krisssssssss/expensy_backend:latest
+          ports:
+            - containerPort: 8706
+          env:
+            - name: PORT
+              value: "8706"
+            - name: DATABASE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: mongo-uri
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: redis-host
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: redis-port
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: redis-password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8706
+      targetPort: 8706
+  selector:
+    app: backend
