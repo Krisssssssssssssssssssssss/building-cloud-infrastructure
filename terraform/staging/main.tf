@@ -1,6 +1,7 @@
 module "network" {
   source = "../modules/network"
   vpc_cidr = "10.1.0.0/16"
+  vpc_name = "staging-vpc"
 }
 
 module "eks_cluster" {

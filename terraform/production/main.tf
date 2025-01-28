@@ -1,6 +1,7 @@
 module "network" {
   source   = "../modules/network"
   vpc_cidr = "10.2.0.0/16"
+  vpc_name = "production-vpc"
 }
 
 module "eks_cluster" {
