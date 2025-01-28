@@ -37,3 +37,7 @@ variable "max_size" {
   type        = number
   default     = 4
 }
+variable "security_group_id" {
+  description = "Security group ID for the EKS cluster"
+  type        = string
+}

@@ -9,7 +9,7 @@ resource "aws_eks_cluster" "example" {
 
   vpc_config {
     subnet_ids         = var.subnet_ids
-    security_group_ids = [module.network.eks_security_group_id] # Replace with your SG ID output
+    security_group_ids = [var.security_group_id]
   }
 
   depends_on = [
