@@ -4,9 +4,12 @@ module "network" {
 }
 
 module "eks_cluster" {
-  source           = "../modules/eks_cluster"
-  cluster_name     = "kristijan-staging"
-  cluster_version  = "1.27"
-  subnet_ids       = concat(module.network.public_subnet_ids, module.network.private_subnet_ids)
-  private_subnet_ids = module.network.private_subnet_ids
+  source          = "../modules/eks_cluster"
+  cluster_name    = "kris-staging"
+  cluster_version = "1.27"
+  subnet_ids      = module.network.private_subnet_ids
+  instance_types  = ["t3.medium"]
+  desired_size    = 2
+  min_size        = 1
+  max_size        = 4
 }

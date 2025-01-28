@@ -14,25 +14,26 @@ variable "subnet_ids" {
   type        = list(string)
 }
 
-variable "private_subnet_ids" {
-  description = "List of private subnet IDs for the node group"
-  type        = list(string)
-}
-
 variable "instance_types" {
-  description = "Instance types for the managed node group"
+  description = "Instance types for worker nodes"
   type        = list(string)
   default     = ["t3.medium"]
 }
 
+variable "desired_size" {
+  description = "Desired size of the node group"
+  type        = number
+  default     = 2
+}
+
 variable "min_size" {
-  description = "Minimum number of nodes in the node group"
+  description = "Minimum size of the node group"
   type        = number
   default     = 1
 }
 
 variable "max_size" {
-  description = "Maximum number of nodes in the node group"
+  description = "Maximum size of the node group"
   type        = number
   default     = 4
 }

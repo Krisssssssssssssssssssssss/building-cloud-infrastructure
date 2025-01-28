@@ -1,39 +1,14 @@
 output "cluster_endpoint" {
-  description = "EKS Cluster endpoint"
-  value       = module.eks_cluster.cluster_endpoint
+  description = "EKS Cluster API endpoint"
+  value       = aws_eks_cluster.example.endpoint
 }
 
-output "kubeconfig" {
-  description = "Kubeconfig for the EKS cluster"
-  value       = jsonencode({
-    apiVersion = "v1"
-    clusters = [
-      {
-        cluster = {
-          server                   = module.eks_cluster.cluster_endpoint
-          certificate-authority-data = module.eks_cluster.cluster_certificate_authority_data
-        }
-        name = module.eks_cluster.cluster_name
-      }
-    ]
-    contexts = [
-      {
-        context = {
-          cluster = module.eks_cluster.cluster_name
-          user    = module.eks_cluster.cluster_name
-        }
-        name = module.eks_cluster.cluster_name
-      }
-    ]
-    current-context = module.eks_cluster.cluster_name
-    kind            = "Config"
-    users = [
-      {
-        name = module.eks_cluster.cluster_name
-        user = {
-          token = module.eks_cluster.token
-        }
-      }
-    ]
-  })
+output "cluster_certificate" {
+  description = "Base64 encoded certificate data for the EKS cluster"
+  value       = aws_eks_cluster.example.certificate_authority[0].data
 }
+
+# output "node_group_arn" {
+#   description = "ARN of the EKS node group"
+#   value       = aws_eks_node_group.node_group.arn
+# }
