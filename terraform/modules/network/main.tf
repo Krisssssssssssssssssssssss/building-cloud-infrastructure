@@ -113,6 +113,9 @@ resource "aws_security_group" "eks" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+    # or
+    # cidr_blocks = [aws_vpc.main.cidr_block]
+    # if we want to have traffic only contained in the cidr_block
   }
 
   tags = {
