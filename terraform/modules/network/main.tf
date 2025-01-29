@@ -107,15 +107,26 @@ resource "aws_security_group" "eks" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+    ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 8706
+    to_port     = 8706
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+  }
 
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    # or
-    # cidr_blocks = [aws_vpc.main.cidr_block]
-    # if we want to have traffic only contained in the cidr_block
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    # cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = {
