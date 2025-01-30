@@ -118,7 +118,7 @@ resource "aws_security_group" "eks" {
     from_port   = 8706
     to_port     = 8706
     protocol    = "tcp"
-    cidr_blocks = [aws_vpc.main.cidr_block]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
