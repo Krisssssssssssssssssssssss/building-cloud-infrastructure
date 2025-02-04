@@ -1,0 +1,36 @@
+name: CD Pipeline for Expensy App (Production)
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+jobs:
+  deploy-production:
+    name: Deploy to Production EKS
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: me-south-1
+      CLUSTER_NAME: kris-production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up AWS CLI
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Update kubeconfig for Production
+      run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
+
+    - name: Deploy to Production
+      run: |
+        kubectl set image deployment/backend backend=${{ secrets.DOCKERHUB_USERNAME }}/backend:${{ github.sha }}
+        kubectl set image deployment/frontend frontend=${{ secrets.DOCKERHUB_USERNAME }}/frontend:${{ github.sha }}

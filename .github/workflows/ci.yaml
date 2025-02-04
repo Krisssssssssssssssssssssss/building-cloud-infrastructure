@@ -1,0 +1,45 @@
+name: CI Pipeline for Expensy App
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+  pull_request:
+    branches:
+      - main
+      - staging
+
+jobs:
+  build-and-push:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      BACKEND_IMAGE: backend
+      FRONTEND_IMAGE: frontend
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Docker
+      uses: docker/setup-buildx-action@v2
+
+    - name: Log in to DockerHub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+    - name: Build and Push Backend Image
+      run: |
+        docker build -t $DOCKERHUB_USERNAME/backend:${{ github.sha }} -f expensy_backend/Dockerfile expensy_backend/
+        docker push $DOCKERHUB_USERNAME/backend:${{ github.sha }}
+
+    - name: Build and Push Frontend Image
+      run: |
+        docker build -t $DOCKERHUB_USERNAME/frontend:${{ github.sha }} -f expensy_frontend/Dockerfile expensy_frontend/
+        docker push $DOCKERHUB_USERNAME/frontend:${{ github.sha }}
